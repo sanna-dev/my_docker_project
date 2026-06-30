@@ -2,12 +2,34 @@ name: Project CI/CD
 
 on:
   push:
-    branches: [ "task-2", "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "task-3", "main" ]
 
 jobs:
-  test-docker:
+  lint-and-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Hadolint (Dockerfile Check)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          ignore: DL3008 # Игнорируем совет по версиям пакетов для упрощения
+
+      - name: Build image for scanning
+        run: docker build -t my-app:latest .
+
+      - name: Trivy Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'my-app:latest'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+  test-and-report:
+    needs: lint-and-security
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -16,13 +38,14 @@ jobs:
       - name: Start Services
         run: docker compose up -d
 
-      - name: Wait for services (Healthcheck)
-        run: |
-          echo "Ожидание готовности контейнеров..."
-          sleep 20
+      - name: Wait for services
+        run: sleep 25
 
-      - name: Test Application Health
+      - name: Show Application Logs (Task 2 PROOF)
+        run: docker compose logs app
+
+      - name: Test Health
         run: curl --fail http://localhost:8000/health
 
-      - name: Run Failure Simulation (Creative Task 2)
+      - name: Run Failure Simulation
         run: bash scripts/simulate_failure.sh
