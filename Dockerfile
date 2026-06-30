@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Установка зависимостей с очисткой кэша (требование Hadolint)
+# Установка системных зависимостей (Requirement: Task 1 & 4 optimization)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
@@ -9,13 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Копируем зависимости
+# Оптимизация слоев: сначала зависимости
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем проект
+# Копируем остальной код
 COPY . .
 
+# Делаем скрипт исполняемым
 RUN chmod +x scripts/entrypoint.sh
 
+# Запуск через entrypoint (Requirement: Task 2 migrations)
 CMD ["/bin/bash", "scripts/entrypoint.sh"]
