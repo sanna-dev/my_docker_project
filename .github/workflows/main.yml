@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "task-3", "main" ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   lint-and-security:
     runs-on: ubuntu-latest
@@ -15,20 +19,19 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
-          ignore: DL3008 # Игнорируем совет по версиям пакетов для упрощения
 
       - name: Build image for scanning
-        run: docker build -t my-app:latest .
+        run: docker build -t ghcr.io/${{ github.repository }}/app:latest .
 
       - name: Trivy Security Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'my-app:latest'
+          image-ref: 'ghcr.io/${{ github.repository }}/app:latest'
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
-  test-and-report:
+  integration-tests:
     needs: lint-and-security
     runs-on: ubuntu-latest
     steps:
@@ -41,7 +44,7 @@ jobs:
       - name: Wait for services
         run: sleep 25
 
-      - name: Show Application Logs (Task 2 PROOF)
+      - name: Show Application Logs
         run: docker compose logs app
 
       - name: Test Health
@@ -49,3 +52,23 @@ jobs:
 
       - name: Run Failure Simulation
         run: bash scripts/simulate_failure.sh
+
+  # ТВОРЧЕСКОЕ ЗАДАНИЕ: Уведомления (Telegram)
+  notifications:
+    needs: [lint-and-security, integration-tests]
+    runs-on: ubuntu-latest
+    if: always() # Запускать всегда, даже если тесты упали
+    steps:
+      - name: Send Notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            🚀 CI/CD Report for ${{ github.repository }}
+            
+            Статус сборки: ${{ needs.integration-tests.result }}
+            Ветка: ${{ github.ref_name }}
+            Коммит (Hash): ${{ github.sha }}
+            
+            Посмотреть отчет: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
