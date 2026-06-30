@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: app_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d app_db"]
       interval: 5s
@@ -17,6 +19,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Для задания 2: создаем анонимный volume, который сбросится при удалении контейнера (для тестов)
+    volumes:
+      - /data
     networks:
       - app_network
 
@@ -26,27 +31,30 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    restart: on-failure
     depends_on:
       db:
         condition: service_healthy
     networks:
       - app_network
 
-  # --- Творческое задание (Profiles) ---
+  # Творческое задание 1: Инструменты администрирования
   adminer:
     image: adminer
+    restart: always
     ports:
-      - "8080:8080"
-    profiles: ["debug"]
+      - 8080:8080
+    profiles: ["debug"] # Запустится только с флагом --profile debug
     networks:
       - app_network
 
   redis-commander:
     image: rediscommander/redis-commander:latest
+    restart: always
     environment:
       - REDIS_HOSTS=local:redis:6379
     ports:
-      - "8081:8081"
+      - 8081:8081
     profiles: ["debug"]
     networks:
       - app_network
@@ -54,3 +62,6 @@ services:
 networks:
   app_network:
     driver: bridge
+
+volumes:
+  postgres_data:
