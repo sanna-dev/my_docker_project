@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   db:
     image: postgres:15-alpine
@@ -18,6 +19,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Для задания 2: создаем анонимный volume, который сбросится при удалении контейнера (для тестов)
     volumes:
       - /data
     networks:
@@ -33,6 +35,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - app_network
+
+  # Творческое задание 1: Инструменты администрирования
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+    profiles: ["debug"] # Запустится только с флагом --profile debug
+    networks:
+      - app_network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - 8081:8081
+    profiles: ["debug"]
     networks:
       - app_network
 

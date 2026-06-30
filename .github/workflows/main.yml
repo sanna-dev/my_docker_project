@@ -1,0 +1,28 @@
+name: Project CI/CD
+
+on:
+  push:
+    branches: [ "task-2", "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Start Services
+        run: docker compose up -d
+
+      - name: Wait for services (Healthcheck)
+        run: |
+          echo "Ожидание готовности контейнеров..."
+          sleep 20
+
+      - name: Test Application Health
+        run: curl --fail http://localhost:8000/health
+
+      - name: Run Failure Simulation (Creative Task 2)
+        run: bash scripts/simulate_failure.sh
