@@ -10,41 +10,45 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # 1. Умное тегирование (Requirement 4.1)
-      - name: Set Docker Tag
+      # 1. Умное тегирование (Requirement 4.1 с {version})
+      - name: Set Docker Tags
         id: vars
         run: |
           BRANCH_NAME="${{ github.ref_name }}"
-          echo "Processing branch: $BRANCH_NAME"
+          VERSION=$(cat VERSION)
+          
           if [ "$BRANCH_NAME" = "main" ]; then
-            echo "TAG=stable" >> $GITHUB_ENV
+            # Для main ставим два тега (через запятую для удобства сборки)
+            echo "tags=my-app:stable,my-app:$VERSION" >> $GITHUB_OUTPUT
+            echo "primary_tag=stable" >> $GITHUB_OUTPUT
           elif [[ "$BRANCH_NAME" == feature-* ]]; then
-            echo "TAG=dev-$BRANCH_NAME" >> $GITHUB_ENV
+            # Для feature ставим dev- тег
+            echo "tags=my-app:dev-$BRANCH_NAME" >> $GITHUB_OUTPUT
+            echo "primary_tag=dev-$BRANCH_NAME" >> $GITHUB_OUTPUT
           else
-            echo "TAG=latest" >> $GITHUB_ENV
+            echo "tags=my-app:latest" >> $GITHUB_OUTPUT
+            echo "primary_tag=latest" >> $GITHUB_OUTPUT
           fi
 
-      # 2. Сборка и проверка размера (Requirement 4.2)
-      - name: Build and Check Image Size
+      # 2. Сборка образа (Requirement 4.2)
+      # Собираем с использованием первого (основного) тега для проверки размера
+      - name: Build Docker Image
+        run: docker build -t "my-app:${{ steps.vars.outputs.primary_tag }}" .
+
+      # 3. Проверка размера (Requirement 4.2 - лимит 300MB)
+      - name: Check Image Size
         run: |
-          echo "Building with tag: my-app:${{ env.TAG }}"
-          docker build -t "my-app:${{ env.TAG }}" .
-          
-          # Получаем размер в мегабайтах для наглядности
-          SIZE_BYTES=$(docker image inspect "my-app:${{ env.TAG }}" --format='{{.Size}}')
-          SIZE_MB=$(echo "scale=2; $SIZE_BYTES / 1048576" | bc)
-          echo "Текущий размер образа: $SIZE_MB MB ($SIZE_BYTES байт)"
-          
-          LIMIT_MB=300
-          if (( $(echo "$SIZE_MB > $LIMIT_MB" | bc -l) )); then
-            echo "ОШИБКА: Образ весит $SIZE_MB MB, что больше лимита в $LIMIT_MB MB!"
+          SIZE_BYTES=$(docker image inspect "my-app:${{ steps.vars.outputs.primary_tag }}" --format='{{.Size}}')
+          LIMIT=314572800 
+          echo "Размер образа: $SIZE_BYTES байт"
+          if [ "$SIZE_BYTES" -gt "$LIMIT" ]; then
+            echo "ОШИБКА: Образ > 300MB"
             exit 1
           fi
-          echo "Размер в норме. Лимит не превышен."
 
-      # 3. Финальный отчет
+      # 4. Финальный отчет
       - name: Final Summary
         run: |
           echo "--- ОТЧЕТ ПО ЗАДАНИЮ 4 ---"
           echo "Ветка: ${{ github.ref_name }}"
-          echo "Присвоенный тег: my-app:${{ env.TAG }}"
+          echo "Сгенерированные теги: ${{ steps.vars.outputs.tags }}"
