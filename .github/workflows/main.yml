@@ -2,7 +2,13 @@ name: Final CD Pipeline
 
 on:
   push:
+    branches: [ "main", "task-5" ]
+  pull_request:
     branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build-and-push:
@@ -25,9 +31,9 @@ jobs:
       # Имитация деплоя по SSH (Задание 5.1)
       - name: Deploy via SSH (Simulation)
         run: |
-          echo "Подключение к ${{ secrets.SSH_HOST }}..."
-          echo "Использование пароля БД из секретов (не из файла)"
-          # В реальности здесь был бы appleboy/ssh-action
+          echo "Подключение к удаленному серверу..."
+          # Используем секрет из GitHub (Задание 5.2)
+          echo "DB_PASSWORD замаскирован: ${{ secrets.DB_PASSWORD }}"
           docker compose up -d
           
       # Проверка и Rollback (Задание 5.3)
