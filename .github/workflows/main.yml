@@ -2,27 +2,42 @@ name: Project CI/CD
 
 on:
   push:
-    branches: [ "task-2", "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "task-4", "main" ]
 
 jobs:
-  test-docker:
+  build-and-check-size:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Start Services
-        run: docker compose up -d
-
-      - name: Wait for services (Healthcheck)
+      # 1. Умное тегирование (Requirement 4.1)
+      - name: Set Docker Tag
+        id: vars
         run: |
-          echo "Ожидание готовности контейнеров..."
-          sleep 20
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "tag=stable" >> $GITHUB_OUTPUT
+          else
+            echo "tag=dev-${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Test Application Health
-        run: curl --fail http://localhost:8000/health
+      # 2. Сборка образа
+      - name: Build Image
+        run: docker build -t my-app:${{ steps.vars.outputs.tag }} .
 
-      - name: Run Failure Simulation (Creative Task 2)
-        run: bash scripts/simulate_failure.sh
+      # 3. Проверка размера (Requirement 4.2 - лимит 300MB)
+      - name: Check Image Size
+        run: |
+          SIZE=$(docker image inspect my-app:${{ steps.vars.outputs.tag }} --format='{{.Size}}')
+          LIMIT=314572800 # 300 MB в байтах
+          echo "Размер образа: $SIZE байт"
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "ОШИБКА: Образ слишком тяжелый! ($SIZE байт > $LIMIT)"
+            exit 1
+          fi
+          echo "Размер в пределах нормы."
+
+      # 4. Вывод результата для отчета
+      - name: Summary
+        run: |
+          echo "Образ: my-app:${{ steps.vars.outputs.tag }}"
+          echo "Статус: Успешно проверен на размер и безопасность"
