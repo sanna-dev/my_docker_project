@@ -2,42 +2,37 @@ name: Project CI/CD
 
 on:
   push:
-    branches: [ "task-4", "main" ]
+    branches: [ "main", "feature-*" ]
 
 jobs:
-  build-and-check-size:
+  build-and-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      # 1. Умное тегирование (Requirement 4.1)
+      # Умное тегирование: stable для main, dev- для feature-*
       - name: Set Docker Tag
         id: vars
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          if [ "${{ github.ref_name }}" == "main" ]; then
             echo "tag=stable" >> $GITHUB_OUTPUT
-          else
+          elif [[ "${{ github.ref_name }}" == feature-* ]]; then
             echo "tag=dev-${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
-      # 2. Сборка образа
-      - name: Build Image
-        run: docker build -t my-app:${{ steps.vars.outputs.tag }} .
-
-      # 3. Проверка размера (Requirement 4.2 - лимит 300MB)
-      - name: Check Image Size
+      # Проверка размера образа (< 300MB)
+      - name: Build and Check Size
         run: |
+          docker build -t my-app:${{ steps.vars.outputs.tag }} .
           SIZE=$(docker image inspect my-app:${{ steps.vars.outputs.tag }} --format='{{.Size}}')
-          LIMIT=314572800 # 300 MB в байтах
-          echo "Размер образа: $SIZE байт"
+          LIMIT=314572800
           if [ "$SIZE" -gt "$LIMIT" ]; then
-            echo "ОШИБКА: Образ слишком тяжелый! ($SIZE байт > $LIMIT)"
+            echo "ОШИБКА: Образ > 300MB"
             exit 1
           fi
-          echo "Размер в пределах нормы."
+          echo "Размер в норме: $SIZE байт"
 
-      # 4. Вывод результата для отчета
       - name: Summary
-        run: |
-          echo "Образ: my-app:${{ steps.vars.outputs.tag }}"
-          echo "Статус: Успешно проверен на размер и безопасность"
+        run: echo "Тег образа: my-app:${{ steps.vars.outputs.tag }}"

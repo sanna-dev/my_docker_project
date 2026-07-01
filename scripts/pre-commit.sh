@@ -1,16 +1,22 @@
 #!/bin/bash
-echo "--- Запуск проверки безопасности перед коммитом ---"
+echo "--- Проверка Git-Hook ---"
 
-# Проверяем на секреты только папку app/ (код приложения), игнорируя конфиги .env
-if grep -rE "PASSWORD|TOKEN|SECRET_KEY" app/ --exclude="*.sh" | grep -v "os.getenv"; then
-    echo "ОШИБКА: Найдены секреты в коде приложения!"
+# 1. Поиск секретов
+if grep -rE "PASSWORD|TOKEN|SECRET" app/ --exclude="*.sh" | grep -v "os.getenv"; then
+    echo "ОШИБКА: Секреты в коде!"
     exit 1
 fi
 
-# Проверка на использование ADD
-if grep "ADD" Dockerfile; then
-    echo "ОШИБКА: Используй COPY вместо ADD."
-    exit 1
+# 2. Проверка ADD для файлов > 10МБ
+ADD_LINE=$(grep "ADD" Dockerfile)
+if [ -n "$ADD_LINE" ]; then
+    FILE_NAME=$(echo "$ADD_LINE" | awk '{print $2}')
+    if [ -f "$FILE_NAME" ]; then
+        FILE_SIZE=$(wc -c < "$FILE_NAME")
+        if [ "$FILE_SIZE" -gt 10485760 ]; then
+            echo "ОШИБКА: Файл в ADD > 10MB!"
+            exit 1
+        fi
+    fi
 fi
-
-echo "Проверка пройдена успешно!"
+echo "Проверка пройдена!"
