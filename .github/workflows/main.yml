@@ -10,29 +10,40 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Умное тегирование: stable для main, dev- для feature-*
+      # 1. Умное тегирование (Requirement 4.1)
+      # Используем grep для надежности проверки префикса feature-
       - name: Set Docker Tag
         id: vars
         run: |
-          if [ "${{ github.ref_name }}" == "main" ]; then
+          if [ "${{ github.ref_name }}" = "main" ]; then
             echo "tag=stable" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == feature-* ]]; then
+          elif echo "${{ github.ref_name }}" | grep -q "^feature-"; then
             echo "tag=dev-${{ github.ref_name }}" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
-      # Проверка размера образа (< 300MB)
-      - name: Build and Check Size
-        run: |
-          docker build -t my-app:${{ steps.vars.outputs.tag }} .
-          SIZE=$(docker image inspect my-app:${{ steps.vars.outputs.tag }} --format='{{.Size}}')
-          LIMIT=314572800
-          if [ "$SIZE" -gt "$LIMIT" ]; then
-            echo "ОШИБКА: Образ > 300MB"
-            exit 1
-          fi
-          echo "Размер в норме: $SIZE байт"
+      # 2. Сборка образа (Requirement 4.2)
+      - name: Build Docker Image
+        run: docker build -t my-app:${{ steps.vars.outputs.tag }} .
 
-      - name: Summary
-        run: echo "Тег образа: my-app:${{ steps.vars.outputs.tag }}"
+      # 3. Проверка размера (Requirement 4.2 - лимит 300MB)
+      - name: Check Image Size
+        run: |
+          SIZE=$(docker image inspect my-app:${{ steps.vars.outputs.tag }} --format='{{.Size}}')
+          LIMIT=314572800 
+          echo "Текущий размер образа: $SIZE байт"
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "ОШИБКА: Образ слишком большой (>300MB)!"
+            exit 1
+          else
+            echo "Размер в норме. Лимит не превышен."
+          fi
+
+      # 4. Вывод результата для отчета
+      - name: Final Summary
+        run: |
+          echo "--- ОТЧЕТ ПО ЗАДАНИЮ 4 ---"
+          echo "Ветка: ${{ github.ref_name }}"
+          echo "Присвоенный тег: my-app:${{ steps.vars.outputs.tag }}"
+          echo "Статус проверки размера: Успешно"
