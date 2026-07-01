@@ -1,28 +1,37 @@
-name: Project CI/CD
+name: Final CD Pipeline
 
 on:
   push:
-    branches: [ "task-2", "main" ]
-  pull_request:
     branches: [ "main" ]
 
 jobs:
-  test-docker:
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Start Services
-        run: docker compose up -d
-
-      - name: Wait for services (Healthcheck)
+      - uses: actions/checkout@v3
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push
         run: |
-          echo "Ожидание готовности контейнеров..."
-          sleep 20
+          docker build -t ghcr.io/${{ github.repository }}/app:latest .
+          docker push ghcr.io/${{ github.repository }}/app:latest
 
-      - name: Test Application Health
-        run: curl --fail http://localhost:8000/health
-
-      - name: Run Failure Simulation (Creative Task 2)
-        run: bash scripts/simulate_failure.sh
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      # Имитация деплоя по SSH (Задание 5.1)
+      - name: Deploy via SSH (Simulation)
+        run: |
+          echo "Подключение к ${{ secrets.SSH_HOST }}..."
+          echo "Использование пароля БД из секретов (не из файла)"
+          # В реальности здесь был бы appleboy/ssh-action
+          docker compose up -d
+          
+      # Проверка и Rollback (Задание 5.3)
+      - name: Health Check and Rollback logic
+        run: bash scripts/deploy_check.sh
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}

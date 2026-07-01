@@ -4,33 +4,30 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD} # Секрет из GitHub
       POSTGRES_DB: app_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d app_db"]
+      test: ["CMD-SHELL", "pg_isready -U admin -d app_db"]
       interval: 5s
-      timeout: 5s
       retries: 5
     networks:
       - app_network
 
   redis:
     image: redis:7-alpine
-    # Для задания 2: создаем анонимный volume, который сбросится при удалении контейнера (для тестов)
-    volumes:
-      - /data
     networks:
       - app_network
 
   app:
-    build: .
+    image: ghcr.io/${GITHUB_REPOSITORY}/app:latest
     ports:
       - "8000:8000"
-    env_file:
-      - .env
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
     restart: on-failure
     depends_on:
       db:
@@ -38,24 +35,22 @@ services:
     networks:
       - app_network
 
-  # Творческое задание 1: Инструменты администрирования
-  adminer:
-    image: adminer
-    restart: always
+  # --- Творческое задание 5: Мониторинг ---
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - 8080:8080
-    profiles: ["debug"] # Запустится только с флагом --profile debug
+      - "9090:9090"
     networks:
       - app_network
 
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    restart: always
-    environment:
-      - REDIS_HOSTS=local:redis:6379
+  grafana:
+    image: grafana/grafana
     ports:
-      - 8081:8081
-    profiles: ["debug"]
+      - "3000:3000"
+    depends_on:
+      - prometheus
     networks:
       - app_network
 
